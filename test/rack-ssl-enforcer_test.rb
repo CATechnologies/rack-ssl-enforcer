@@ -202,6 +202,35 @@ class TestRackSslEnforcer < Test::Unit::TestCase
       assert_equal 'Hello world!', last_response.body
     end
   end
+
+  context 'that has multiple elements as except option' do
+    setup { mock_app :except => ["/foo", "/bar", /baz/] }
+
+    should 'respond with a ssl redirect for /login path' do
+      get 'http://www.example.org/login'
+      assert_equal 301, last_response.status
+      assert_equal 'https://www.example.org/login', last_response.location
+    end
+
+    should 'not redirect requests with paths within excepts 1' do
+      get 'http://www.example.org/bar'
+      assert_equal 200, last_response.status
+      assert_equal 'Hello world!', last_response.body
+    end
+
+    should 'not redirect requests with paths within excepts 2' do
+      get 'http://www.example.org/foo'
+      assert_equal 200, last_response.status
+      assert_equal 'Hello world!', last_response.body
+    end
+
+    should 'not redirect requests with paths within excepts 3 ' do
+      get 'http://www.example.org/baz'
+      assert_equal 200, last_response.status
+      assert_equal 'Hello world!', last_response.body
+    end
+
+  end
   
   context 'that has path as except option with strict option' do
     setup { mock_app :except => "/foo", :strict => true }
