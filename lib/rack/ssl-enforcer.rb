@@ -44,66 +44,37 @@ module Rack
         env['rack.url_scheme']
       end
     end
-    
-    def matches?(key, pattern, req)
-      if pattern.is_a?(Regexp)
-        case key
-        when :only
-          req.path =~ pattern
-        when :except
-          req.path !~ pattern
-        when :only_hosts
-          req.host =~ pattern
-        when :except_hosts
-          req.host !~ pattern
-        end
-      else
-        case key
-        when :only
-          req.path[0,pattern.length] == pattern
-        when :except
-          req.path[0,pattern.length] != pattern
-        when :only_hosts
-          req.host == pattern
-        when :except_hosts
-          req.host != pattern
-        end
-      end
-    end
 
-    def enforce_ssl_for?(keys, req)
-      if keys.any? {|option| @options.key?(option)}
-        keys.any? do |key|
-          rules = [@options[key]].flatten.compact
-          rules.any? do |pattern|
-            matches?(key, pattern, req)
-          end
-        end
+    def enforce_ssl?(req)
+      if enforced_host?(req)
+        enforced_path?(req)
       else
         false
       end
     end
 
-    def enforce_ssl?(req)
-      path_keys = [:only, :except]
-      hosts_keys = [:only_hosts, :except_hosts]
-      if hosts_keys.any? {|option| @options.key?(option)}
-        if enforce_ssl_for?(hosts_keys, req)
-          if path_keys.any? {|option| @options.key?(option)}
-            enforce_ssl_for?(path_keys, req)
-          else
-            true
-          end
-        else
-          false
-        end
-      elsif path_keys.any? {|option| @options.key?(option)}
-        enforce_ssl_for?(path_keys, req)
-      else
-        true
-      end
+    def enforced_host? req
+      enforced = true
+      enforced &&= matches_only?(req.host, @options[:only_hosts])
+      enforced &&= !matches_except?(req.host, @options[:except_hosts])
     end
-    
+
+    def enforced_path? req
+      enforced = true
+      enforced &&= matches_only?(req.path, @options[:only])
+      enforced &&= !matches_except?(req.path, @options[:except])
+    end
+
+    def matches_only? pattern, rules
+      return true unless rules
+      [rules].flatten.compact.any?{|r| r.is_a?(Regexp) ? r =~ pattern : r == pattern[0,r.length]}
+    end
+
+    def matches_except? pattern, rules
+      return false unless rules
+      [rules].flatten.compact.any?{|r| r.is_a?(Regexp) ? r =~ pattern : r == pattern[0,r.length]}
+    end
+
     def replace_scheme(req, scheme)
       Rack::Request.new(req.env.merge(
         'rack.url_scheme' => scheme,
